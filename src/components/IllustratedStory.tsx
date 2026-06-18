@@ -427,10 +427,55 @@ export default function IllustratedStory({
     };
   }, [audioInstance, verseAudioInstance, activeTab, lesson.id]);
 
-  const currentSlide = lesson.slides[currentPage];
+  // Dynamically augment original slides with full textbook content (detailed explanations, morals, and exercises with model answers)
+  const combinedSlides = React.useMemo(() => {
+    const slides = [...lesson.slides];
+    const textbook = fullTextbookData[lesson.id];
+    
+    if (textbook) {
+      // 1. Detailed explanation sections
+      textbook.detailedExplanation.forEach((sec, idx) => {
+        slides.push({
+          id: 100 + idx,
+          title: sec.title,
+          narrative: sec.content,
+          highlightVerse: idx === 0 ? (textbook.coreText || undefined) : undefined,
+          illustrationType: lesson.type === 'fiqh' ? 'prayer' : lesson.type === 'quran' ? 'stars' : lesson.type === 'aqeedah' ? 'space' : 'rose'
+        });
+      });
+
+      // 2. Benefits and Morals
+      if (textbook.benefitsAndMorals && textbook.benefitsAndMorals.length > 0) {
+        slides.push({
+          id: 200,
+          title: "الدروس والعِبَر المستفادة من المنهج والمصدر المقرّر",
+          narrative: "مكارم التوجيهات وحكمة الدرس المستخلصة لتربية السلوك:\n\n• " + textbook.benefitsAndMorals.join("\n\n• "),
+          illustrationType: 'balance'
+        });
+      }
+
+      // 3. Textbook Questions with Approved solutions
+      if (textbook.textbookQuestions && textbook.textbookQuestions.length > 0) {
+        const questionsStr = textbook.textbookQuestions.map((q, qidx) => {
+          return `س${qidx + 1}: ${q.question}\n🎯 الإجابة النموذجية المعتمدة:\n${q.answer}`;
+        }).join("\n\n────────────────\n\n");
+
+        slides.push({
+          id: 300,
+          title: "التقويم وحل تدريبات الكتاب المدرسي المصاحب",
+          narrative: "تأمل الأسئلة والتمارين المنهجية وحلولها النموذجية للتقييم والتذكر:\n\n" + questionsStr,
+          illustrationType: 'rose'
+        });
+      }
+    }
+    
+    return slides;
+  }, [lesson]);
+
+  const currentSlide = combinedSlides[currentPage] || lesson.slides[0];
   const slideOverrideKey = `${lesson.id}_slide_${currentSlide?.id}`;
   const displayImageUrl = customImages[slideOverrideKey] !== undefined ? customImages[slideOverrideKey] : currentSlide?.imageUrl;
-  const isLastPage = currentPage === lesson.slides.length - 1;
+  const isLastPage = currentPage === combinedSlides.length - 1;
 
   // Sync with fullstack server overrides on mount
   useEffect(() => {
@@ -550,7 +595,7 @@ export default function IllustratedStory({
   };
 
   const handleNext = () => {
-    if (currentPage < lesson.slides.length - 1) {
+    if (currentPage < combinedSlides.length - 1) {
       setCurrentPage(prev => prev + 1);
     } else {
       // Trigger Completion
@@ -1226,12 +1271,12 @@ export default function IllustratedStory({
             {/* Header: Book title and progress bar */}
             <div className="flex justify-between items-center mb-5">
               <span className="text-xs font-black text-[#5A6B47] bg-[#5A6B47]/10 border border-[#5A6B47]/20 px-3 py-1 rounded-lg inline-block">
-                الصفحة {currentPage + 1} من {lesson.slides.length}
+                الصفحة {currentPage + 1} من {combinedSlides.length}
               </span>
               <div className="w-1/3 bg-[#E9E1CD] h-2 rounded-full overflow-hidden">
                 <div 
                   className="bg-[#5A6B47] h-full rounded-full transition-all duration-300"
-                  style={{ width: `${((currentPage + 1) / lesson.slides.length) * 100}%` }}
+                  style={{ width: `${((currentPage + 1) / combinedSlides.length) * 100}%` }}
                 ></div>
               </div>
             </div>
